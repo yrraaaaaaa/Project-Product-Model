@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+streamlit
+pandas
+tensorflow==2.12.0
+scikit-learn
+google-play-scraper
