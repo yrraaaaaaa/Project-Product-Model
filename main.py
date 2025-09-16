@@ -3,12 +3,13 @@ import pandas as pd
 import requests
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
+from collections import Counter
 
-API_URL = "http://127.0.0.1:8000/docs"
+# API endpoint (bukan /docs ya 👇)
+API_URL = "http://127.0.0.1:8000/predict"
 
 st.set_page_config(page_title="Sentiment Analysis Dashboard", layout="wide")
-
-st.title("📊 Sentiment Analysis Dashboard with API")
+st.title("Sentiment Analysis Dashboard with API")
 
 # Upload dataset
 uploaded_file = st.file_uploader("Upload your dataset (CSV)", type=["csv"])
@@ -22,29 +23,37 @@ if uploaded_file:
     else:
         st.success("Dataset loaded!")
 
-        # Panggil API untuk setiap teks 
-        st.write("🔄 Sedang melakukan labeling otomatis via API...")
+        # Panggil API untuk setiap teks
+        st.write("Sedang melakukan labeling otomatis via API...")
 
         sentiments = []
-        for t in df["text"]:
+        debug_prints = []  # buat simpan contoh response
+        for idx, t in enumerate(df["text"]):
             try:
                 response = requests.post(API_URL, json={"text": str(t)})
                 if response.status_code == 200:
-                    sentiments.append(response.json()["prediction"])
+                    result = response.json()
+                    # Simpan max 5 prediksi pertama untuk debug
+                    if idx < 5:
+                        debug_prints.append(result)
+                    sentiments.append(result.get("prediction", "unknown"))
                 else:
                     sentiments.append("unknown")
             except:
                 sentiments.append("error")
 
-        df["sentiment"] = sentiments
+        # Debug print: lihat 5 hasil API pertama
+        st.subheader("Sample Predictions dari API")
+        st.write(debug_prints)
 
+        df["sentiment"] = sentiments
         st.write("Labeling selesai!")
 
-        # Metrics 
+        # === METRICS ===
         total = len(df)
-        pos = (df["sentiment"] == "positive").sum()
-        neg = (df["sentiment"] == "negative").sum()
-        neu = (df["sentiment"] == "neutral").sum()
+        pos = (df["sentiment"] == "positif").sum()
+        neg = (df["sentiment"] == "negatif").sum()
+        neu = (df["sentiment"] == "netral").sum()
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Amount of Data", total)
@@ -52,13 +61,21 @@ if uploaded_file:
         col3.metric("Negative Count", neg)
         col4.metric("Neutral Count", neu)
 
-        # Pie Chart 
-        st.subheader(" Neutral, Negative, Positive")
-        fig1, ax1 = plt.subplots()
-        ax1.pie([pos, neg, neu], labels=["Positive", "Negative", "Neutral"], autopct='%1.1f%%', colors=["green", "red", "gray"])
-        st.pyplot(fig1)
+        # === PIE CHART ===
+        st.subheader("Netral, Negatif, Positif")
+        if total > 0 and (pos + neg + neu) > 0:
+            fig1, ax1 = plt.subplots()
+            ax1.pie(
+                [pos, neg, neu],
+                labels=["Positif", "Negatif", "Netral"],
+                autopct='%1.1f%%',
+                colors=["green", "red", "gray"]
+            )
+            st.pyplot(fig1)
+        else:
+            st.warning("Tidak ada data valid untuk ditampilkan di pie chart.")
 
-        # WordCloud 
+        # === WORDCLOUD ===
         st.subheader("Wordcloud")
         text_data = " ".join(df["text"].astype(str).tolist())
         wordcloud = WordCloud(width=800, height=400, background_color="white").generate(text_data)
@@ -67,7 +84,9 @@ if uploaded_file:
         ax2.axis("off")
         st.pyplot(fig2)
 
-        # Line Chart by Index 
-        st.subheader("Sentiment Distribution Over Data Index")
-        df["sentiment_score"] = df["sentiment"].map({"positive": 1, "neutral": 0, "negative": -1})
-        st.line_chart(df["sentiment_score"])
+        # === TOP WORDS PER SENTIMENT ===
+        st.subheader("Most Common Words per Sentiment")
+        for label in ["positif", "negatif", "netral"]:
+            words = " ".join(df[df["sentiment"] == label]["text"].astype(str)).split()
+            common_words = Counter(words).most_common(10)
+            st.write(f"**{label.capitalize()}**: {common_words}")
