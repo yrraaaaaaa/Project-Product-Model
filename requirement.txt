@@ -8,3 +8,8 @@ google-play-scraper
 matplotlib
 numpy
 seaborn
+requests
+wordcloud
+nltk
+Sastrawi
+pillow
